@@ -95,7 +95,7 @@ class Action:
                         var_mapping, init_assignments).expression.value)
             else:
                 cost = 1
-            return PropositionalAction(name, precondition, effects, cost)
+            return PropositionalAction(name, precondition, effects, cost, self, var_mapping)
         else:
             return None
 
@@ -106,9 +106,7 @@ class PropositionalAction:
         self.precondition = precondition
         self.add_effects = []
         self.del_effects = []
-        self.effect_mappings = []
-        for _, _, effect, effect_mapping in effects:
-            self.effect_mappings.append((effect, effect_mapping))
+        self.effect_mappings = effects
         for condition, effect, _, _ in effects:
             if not effect.negated:
                 self.add_effects.append((condition, effect))

@@ -46,7 +46,8 @@ def get_literals(condition):
     if isinstance(condition, pddl.Literal):
         yield condition
     elif isinstance(condition, pddl.Conjunction):
-        yield from condition.parts
+        for part in condition.parts:
+            yield part
 
 
 def ensure_conjunction_sat(system, *parts):

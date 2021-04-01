@@ -13,8 +13,7 @@ def parse_pddl_file(type, filename):
         # Latin-* encodings and of UTF-8) to allow special characters in
         # comments. In all other parts, we later validate that only ASCII is
         # used.
-        return lisp_parser.parse_nested_list(file_open(filename,
-                                                       encoding='ISO-8859-1'))
+        return lisp_parser.parse_nested_list(file_open(filename)) #, encoding='ISO-8859-1'))
     except OSError as e:
         raise SystemExit("Error: Could not read file: %s\nReason: %s." %
                          (e.filename, e))

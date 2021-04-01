@@ -50,7 +50,7 @@ class Action:
                 new_effects.append(relaxed_eff)
         return Action(self.name, self.parameters, self.num_external_parameters,
                       self.precondition.relaxed().simplified(),
-                      new_effects)
+                      new_effects, self.cost)
 
     def untyped(self):
         # We do not actually remove the types from the parameter lists,
@@ -64,7 +64,7 @@ class Action:
         return result
 
     def instantiate(self, var_mapping, init_facts, init_assignments,
-                    fluent_facts, objects_by_type, metric):
+                    fluent_facts, objects_by_type, metric, predicate_to_atoms):
         """Return a PropositionalAction which corresponds to the instantiation of
         this action with the arguments in var_mapping. Only fluent parts of the
         conditions (those in fluent_facts) are included. init_facts are evaluated
@@ -85,7 +85,7 @@ class Action:
         effects = []
         for eff in self.effects:
             eff.instantiate(var_mapping, init_facts, fluent_facts,
-                            objects_by_type, effects)
+                            objects_by_type, effects, predicate_to_atoms)
         if effects:
             if metric:
                 if self.cost is None:

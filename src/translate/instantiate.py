@@ -29,6 +29,13 @@ def get_objects_by_type(typed_objects, types):
             result[type].append(obj.name)
     return result
 
+def get_atoms_by_predicate(atoms):
+    result = {} # TODO: defaultdict?
+    for atom in atoms:
+        if isinstance(atom, pddl.Atom):
+            result.setdefault(atom.predicate, []).append(atom)
+    return result
+
 def instantiate(task, model):
     relaxed_reachable = False
     fluent_facts = get_fluent_facts(task, model)
@@ -41,6 +48,7 @@ def instantiate(task, model):
             init_facts.add(element)
 
     type_to_objects = get_objects_by_type(task.objects, task.types)
+    predicate_to_atoms = get_atoms_by_predicate(init_facts | fluent_facts)
 
     instantiated_actions = []
     instantiated_axioms = []
@@ -61,7 +69,8 @@ def instantiate(task, model):
             inst_action = action.instantiate(
                 variable_mapping, init_facts, init_assignments,
                 fluent_facts, type_to_objects,
-                task.use_min_cost_metric)
+                task.use_min_cost_metric,
+                predicate_to_atoms)
             if inst_action:
                 instantiated_actions.append(inst_action)
         elif isinstance(atom.predicate, pddl.Axiom):

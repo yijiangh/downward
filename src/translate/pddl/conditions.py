@@ -6,7 +6,12 @@
 
 class Condition:
     def __init__(self, parts):
-        self.parts = tuple(parts)
+        #self.parts = tuple(parts)
+        unique_parts = []
+        for part in parts:
+            if part not in unique_parts:
+                unique_parts.append(part)
+        self.parts = tuple(unique_parts)
         self.hash = hash((self.__class__, self.parts))
     def __hash__(self):
         return self.hash

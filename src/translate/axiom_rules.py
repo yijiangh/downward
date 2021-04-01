@@ -265,8 +265,9 @@ def compute_negative_axioms(clusters):
                 # (non-overapproximating) way is possible but more expensive.
                 # Again, see issue453 for details.
                 for variable in cluster.variables:
-                    name = cluster.axioms[variable][0].name
-                    negated_axiom = pddl.PropositionalAxiom(name, [], variable.negate())
+                    axioms = cluster.axioms[variable]
+                    negated_axiom = pddl.PropositionalAxiom(axioms[0].name, [], variable.negate(),
+                                                            axioms[0].axiom, axioms[0].var_mapping)
                     cluster.axioms[variable].append(negated_axiom)
             else:
                 variable = next(iter(cluster.variables))

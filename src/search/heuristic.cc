@@ -32,6 +32,16 @@ void Heuristic::set_preferred(const OperatorProxy &op) {
 
 State Heuristic::convert_ancestor_state(const State &ancestor_state) const {
     return task_proxy.convert_ancestor_state(ancestor_state);
+//State Heuristic::convert_global_state(const GlobalState &global_state) const {
+//    vector<int> values = global_state.get_values();
+//    for (const VariableProxy var : task_proxy.get_variables()) {
+//        if (var.is_derived()) {
+//            // Caelan: resets axiom variables to their default value
+//            values[var.get_id()] = var.get_default_axiom_value();
+//        }
+//    }
+//    State state(*g_root_task(), move(values));
+//    return task_proxy.convert_ancestor_state(state);
 }
 
 void Heuristic::add_options_to_parser(OptionParser &parser) {
@@ -78,6 +88,19 @@ EvaluationResult Heuristic::compute_result(EvaluationContext &eval_context) {
         preferred_operators.clear();
         heuristic = EvaluationResult::INFTY;
     }
+
+    /*TaskProxy global_task_proxy = TaskProxy(*g_root_task());
+    State global_state(*g_root_task(), state.get_values());
+    OperatorsProxy global_operators = global_task_proxy.get_operators();
+    ordered_set::OrderedSet<OperatorID> applicable_preferred;
+    for (OperatorID op_id : preferred_operators) {
+        if (task_properties::is_applicable(global_operators[op_id], global_state)) {
+            // Caelan: prune preferred operators that are not applicable
+            applicable_preferred.insert(op_id);
+        }
+    }
+    result.set_preferred_operators(applicable_preferred.pop_as_vector());
+    preferred_operators.clear();*/
 
 //#ifndef NDEBUG
 //    TaskProxy global_task_proxy = state.get_task();

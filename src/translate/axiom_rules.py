@@ -6,6 +6,7 @@ import timers
 from collections import defaultdict
 from itertools import chain
 
+NEGATIVE_SUFFIX = '-negative'
 
 DEBUG = False
 
@@ -55,6 +56,11 @@ class AxiomCluster(object):
 def handle_axioms(operators, axioms, goals, layer_strategy):
     clusters = compute_clusters(axioms, goals, operators)
     axiom_layers = compute_axiom_layers(clusters, layer_strategy)
+
+    #if options.negative_axioms:
+    #    # Caelan: pretends all literals are positive
+    #    #axiom_literals = {l.positive() for l in axiom_literals}
+    #    axiom_literals = {l.positive() if l.predicate.endswith(NEGATIVE_SUFFIX) else l for l in axiom_literals}
 
     # TODO: It would be cleaner if these negated rules were an implementation
     # detail of the heuristics in the search component that make use of them

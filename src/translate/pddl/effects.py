@@ -44,12 +44,6 @@ class Effect:
                     objects_by_type, result, predicate_to_atoms):
         if self.parameters:
             var_mapping = var_mapping.copy() # Will modify this.
-            object_lists = [objects_by_type.get(par.type_name, [])
-                            for par in self.parameters]
-            for object_tuple in cartesian_product(*object_lists):
-                for (par, obj) in zip(self.parameters, object_tuple):
-                    var_mapping[par.name] = obj
-                self._instantiate(var_mapping, init_facts, fluent_facts, result)
             if isinstance(self.condition, conditions.Truth):
                 facts = []
             elif isinstance(self.condition, conditions.Atom):
@@ -69,6 +63,8 @@ class Effect:
                         self._instantiate(var_mapping, init_facts, fluent_facts, result)
                     break
             else:
+                object_lists = [objects_by_type.get(par.type_name, [])
+                                for par in self.parameters]
                 for object_tuple in cartesian_product(*object_lists):
                     for (par, obj) in zip(self.parameters, object_tuple):
                         var_mapping[par.name] = obj

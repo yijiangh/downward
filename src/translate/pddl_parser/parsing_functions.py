@@ -56,13 +56,14 @@ def parse_function(alist, type_name):
     return pddl.Function(name, arguments, type_name)
 
 
-def parse_condition(alist, type_dict, predicate_dict):
-    condition = parse_condition_aux(alist, False, type_dict, predicate_dict)
+def parse_condition(alist, type_dict, predicate_dict, **kwargs):
+    condition = parse_condition_aux(alist, False, type_dict, predicate_dict, **kwargs)
     return condition.uniquify_variables({}).simplified()
 
 
-def parse_condition_aux(alist, negated, type_dict, predicate_dict):
+def parse_condition_aux(alist, negated, type_dict, predicate_dict, parameters=None):
     """Parse a PDDL condition. The condition is translated into NNF on the fly."""
+    # TODO check if mentioned parameters are in the parameters
     tag = alist[0]
     if tag in ("and", "or", "not", "imply"):
         args = alist[1:]
@@ -71,22 +72,23 @@ def parse_condition_aux(alist, negated, type_dict, predicate_dict):
         if tag == "not":
             assert len(args) == 1
             return parse_condition_aux(
-                args[0], not negated, type_dict, predicate_dict)
+                args[0], not negated, type_dict, predicate_dict, parameters=parameters)
     elif tag in ("forall", "exists"):
-        parameters = parse_typed_list(alist[1])
+        _parameters = parse_typed_list(alist[1])
+        parameters = parameters + _parameters if parameters else _parameters
         args = alist[2:]
         assert len(args) == 1
     else:
-        return parse_literal(alist, type_dict, predicate_dict, negated=negated)
+        return parse_literal(alist, type_dict, predicate_dict, negated=negated, parameters=parameters)
 
     if tag == "imply":
         parts = [parse_condition_aux(
-                args[0], not negated, type_dict, predicate_dict),
+                args[0], not negated, type_dict, predicate_dict, parameters=parameters),
                  parse_condition_aux(
-                args[1], negated, type_dict, predicate_dict)]
+                args[1], negated, type_dict, predicate_dict, parameters=parameters)]
         tag = "or"
     else:
-        parts = [parse_condition_aux(part, negated, type_dict, predicate_dict)
+        parts = [parse_condition_aux(part, negated, type_dict, predicate_dict, parameters=parameters)
                  for part in args]
 
     if tag == "and" and not negated or tag == "or" and negated:
@@ -99,7 +101,7 @@ def parse_condition_aux(alist, negated, type_dict, predicate_dict):
         return pddl.ExistentialCondition(parameters, parts)
 
 
-def parse_literal(alist, type_dict, predicate_dict, negated=False):
+def parse_literal(alist, type_dict, predicate_dict, negated=False, parameters=None):
     if alist[0] == "not":
         assert len(alist) == 2
         alist = alist[1]
@@ -111,6 +113,13 @@ def parse_literal(alist, type_dict, predicate_dict, negated=False):
     if arity != len(alist) - 1:
         raise SystemExit("predicate used with wrong arity: (%s)"
                          % " ".join(alist))
+
+    if parameters is not None:
+        param_names = [p.name for p in parameters]
+        for obj in alist[1:]:
+            if obj not in param_names:
+                raise ValueError("predicate ({}) used with undeclared parameter ({}) in the enclosing body's parameter ({})".format(
+                    ' '.join(alist), obj, ' '.join(param_names)))
 
     if negated:
         return pddl.NegatedAtom(pred_id, alist[1:])
@@ -139,9 +148,9 @@ def _get_predicate_id_and_arity(text, type_dict, predicate_dict):
         return the_type.get_predicate_name(), 1
 
 
-def parse_effects(alist, result, type_dict, predicate_dict):
+def parse_effects(alist, result, type_dict, predicate_dict, **kwargs):
     """Parse a PDDL effect (any combination of simple, conjunctive, conditional, and universal)."""
-    tmp_effect = parse_effect(alist, type_dict, predicate_dict)
+    tmp_effect = parse_effect(alist, type_dict, predicate_dict, **kwargs)
     normalized = tmp_effect.normalize()
     cost_eff, rest_effect = normalized.extract_cost()
     add_effect(rest_effect, result)
@@ -190,21 +199,21 @@ def add_effect(tmp_effect, result):
                 result.remove(contradiction)
                 result.append(new_effect)
 
-def parse_effect(alist, type_dict, predicate_dict):
+def parse_effect(alist, type_dict, predicate_dict, parameters=None):
     tag = alist[0]
     if tag == "and":
         return pddl.ConjunctiveEffect(
-            [parse_effect(eff, type_dict, predicate_dict) for eff in alist[1:]])
+            [parse_effect(eff, type_dict, predicate_dict, parameters=parameters) for eff in alist[1:]])
     elif tag == "forall":
         assert len(alist) == 3
         parameters = parse_typed_list(alist[1])
-        effect = parse_effect(alist[2], type_dict, predicate_dict)
+        effect = parse_effect(alist[2], type_dict, predicate_dict, parameters=parameters)
         return pddl.UniversalEffect(parameters, effect)
     elif tag == "when":
         assert len(alist) == 3
         condition = parse_condition(
             alist[1], type_dict, predicate_dict)
-        effect = parse_effect(alist[2], type_dict, predicate_dict)
+        effect = parse_effect(alist[2], type_dict, predicate_dict, parameters=parameters)
         return pddl.ConditionalEffect(condition, effect)
     elif tag == "increase":
         assert len(alist) == 3
@@ -261,7 +270,7 @@ def parse_action(alist, type_dict, predicate_dict):
             precondition = pddl.Conjunction([])
         else:
             precondition = parse_condition(
-                precondition_list, type_dict, predicate_dict)
+                precondition_list, type_dict, predicate_dict, parameters=parameters)
         effect_tag = next(iterator)
     else:
         precondition = pddl.Conjunction([])
@@ -272,7 +281,7 @@ def parse_action(alist, type_dict, predicate_dict):
     if effect_list:
         try:
             cost = parse_effects(
-                effect_list, eff, type_dict, predicate_dict)
+                effect_list, eff, type_dict, predicate_dict, parameters=parameters)
         except ValueError as e:
             raise SystemExit("Error in Action %s\nReason: %s." % (name, e))
     for rest in iterator:
@@ -288,8 +297,11 @@ def parse_axiom(alist, type_dict, predicate_dict):
     assert len(alist) == 3
     assert alist[0] == ":derived"
     predicate = parse_predicate(alist[1])
+    parameters = None
+    if len(alist[1]) > 1:
+        parameters = parse_typed_list(alist[1])
     condition = parse_condition(
-        alist[2], type_dict, predicate_dict)
+        alist[2], type_dict, predicate_dict, parameters=parameters)
     return pddl.Axiom(predicate.name, predicate.arguments,
                       len(predicate.arguments), condition)
 
@@ -498,3 +510,4 @@ def check_for_duplicates(elements, errmsg, finalmsg):
             seen.add(element)
     if errors:
         raise SystemExit("\n".join(errors) + "\n" + finalmsg)
+

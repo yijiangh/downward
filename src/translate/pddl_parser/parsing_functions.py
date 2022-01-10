@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sys
+import copy
 
 import graph
 import pddl
@@ -61,9 +62,8 @@ def parse_condition(alist, type_dict, predicate_dict, **kwargs):
     return condition.uniquify_variables({}).simplified()
 
 
-def parse_condition_aux(alist, negated, type_dict, predicate_dict, parameters=None):
+def parse_condition_aux(alist, negated, type_dict, predicate_dict, param_names=None):
     """Parse a PDDL condition. The condition is translated into NNF on the fly."""
-    # TODO check if mentioned parameters are in the parameters
     tag = alist[0]
     if tag in ("and", "or", "not", "imply"):
         args = alist[1:]
@@ -72,23 +72,25 @@ def parse_condition_aux(alist, negated, type_dict, predicate_dict, parameters=No
         if tag == "not":
             assert len(args) == 1
             return parse_condition_aux(
-                args[0], not negated, type_dict, predicate_dict, parameters=parameters)
+                args[0], not negated, type_dict, predicate_dict, param_names=param_names)
     elif tag in ("forall", "exists"):
-        _parameters = parse_typed_list(alist[1])
-        parameters = parameters + _parameters if parameters else _parameters
+        # * forall parameters can be outside the defined parameters
+        parameters = parse_typed_list(alist[1])
+        add_param_names = [p.name for p in parameters]
+        param_names = param_names + add_param_names if param_names else add_param_names
         args = alist[2:]
         assert len(args) == 1
     else:
-        return parse_literal(alist, type_dict, predicate_dict, negated=negated, parameters=parameters)
+        return parse_literal(alist, type_dict, predicate_dict, negated=negated, param_names=param_names)
 
     if tag == "imply":
         parts = [parse_condition_aux(
-                args[0], not negated, type_dict, predicate_dict, parameters=parameters),
+                args[0], not negated, type_dict, predicate_dict, param_names=param_names),
                  parse_condition_aux(
-                args[1], negated, type_dict, predicate_dict, parameters=parameters)]
+                args[1], negated, type_dict, predicate_dict, param_names=param_names)]
         tag = "or"
     else:
-        parts = [parse_condition_aux(part, negated, type_dict, predicate_dict, parameters=parameters)
+        parts = [parse_condition_aux(part, negated, type_dict, predicate_dict, param_names=param_names)
                  for part in args]
 
     if tag == "and" and not negated or tag == "or" and negated:
@@ -101,7 +103,7 @@ def parse_condition_aux(alist, negated, type_dict, predicate_dict, parameters=No
         return pddl.ExistentialCondition(parameters, parts)
 
 
-def parse_literal(alist, type_dict, predicate_dict, negated=False, parameters=None):
+def parse_literal(alist, type_dict, predicate_dict, negated=False, param_names=None):
     if alist[0] == "not":
         assert len(alist) == 2
         alist = alist[1]
@@ -114,8 +116,7 @@ def parse_literal(alist, type_dict, predicate_dict, negated=False, parameters=No
         raise SystemExit("predicate used with wrong arity: (%s)"
                          % " ".join(alist))
 
-    if parameters is not None:
-        param_names = [p.name for p in parameters]
+    if param_names is not None:
         for obj in alist[1:]:
             if obj not in param_names:
                 raise ValueError("predicate ({}) used with undeclared parameter ({}) in the enclosing body's parameter ({})".format(
@@ -199,21 +200,22 @@ def add_effect(tmp_effect, result):
                 result.remove(contradiction)
                 result.append(new_effect)
 
-def parse_effect(alist, type_dict, predicate_dict, parameters=None):
+def parse_effect(alist, type_dict, predicate_dict, param_names=None):
+    param_names = param_names or []
     tag = alist[0]
     if tag == "and":
         return pddl.ConjunctiveEffect(
-            [parse_effect(eff, type_dict, predicate_dict, parameters=parameters) for eff in alist[1:]])
+            [parse_effect(eff, type_dict, predicate_dict, param_names=param_names) for eff in alist[1:]])
     elif tag == "forall":
         assert len(alist) == 3
         parameters = parse_typed_list(alist[1])
-        effect = parse_effect(alist[2], type_dict, predicate_dict, parameters=parameters)
+        effect = parse_effect(alist[2], type_dict, predicate_dict, param_names=param_names+[p.name for p in parameters])
         return pddl.UniversalEffect(parameters, effect)
     elif tag == "when":
         assert len(alist) == 3
         condition = parse_condition(
-            alist[1], type_dict, predicate_dict)
-        effect = parse_effect(alist[2], type_dict, predicate_dict, parameters=parameters)
+            alist[1], type_dict, predicate_dict, param_names=param_names)
+        effect = parse_effect(alist[2], type_dict, predicate_dict, param_names=param_names)
         return pddl.ConditionalEffect(condition, effect)
     elif tag == "increase":
         assert len(alist) == 3
@@ -223,7 +225,7 @@ def parse_effect(alist, type_dict, predicate_dict, parameters=None):
     else:
         # We pass in {} instead of type_dict here because types must
         # be static predicates, so cannot be the target of an effect.
-        return pddl.SimpleEffect(parse_literal(alist, {}, predicate_dict))
+        return pddl.SimpleEffect(parse_literal(alist, {}, predicate_dict, param_names=param_names))
 
 
 def parse_expression(exp):
@@ -270,7 +272,7 @@ def parse_action(alist, type_dict, predicate_dict):
             precondition = pddl.Conjunction([])
         else:
             precondition = parse_condition(
-                precondition_list, type_dict, predicate_dict, parameters=parameters)
+                precondition_list, type_dict, predicate_dict, param_names=[p.name for p in parameters])
         effect_tag = next(iterator)
     else:
         precondition = pddl.Conjunction([])
@@ -281,7 +283,7 @@ def parse_action(alist, type_dict, predicate_dict):
     if effect_list:
         try:
             cost = parse_effects(
-                effect_list, eff, type_dict, predicate_dict, parameters=parameters)
+                effect_list, eff, type_dict, predicate_dict, param_names=[p.name for p in parameters])
         except ValueError as e:
             raise SystemExit("Error in Action %s\nReason: %s." % (name, e))
     for rest in iterator:

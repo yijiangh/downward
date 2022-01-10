@@ -299,11 +299,11 @@ def parse_axiom(alist, type_dict, predicate_dict):
     assert len(alist) == 3
     assert alist[0] == ":derived"
     predicate = parse_predicate(alist[1])
-    parameters = None
+    param_names = None
     if len(alist[1]) > 1:
-        parameters = parse_typed_list(alist[1])
+        param_names = [p.name for p in parse_typed_list(alist[1])]
     condition = parse_condition(
-        alist[2], type_dict, predicate_dict, parameters=parameters)
+        alist[2], type_dict, predicate_dict, param_names=param_names)
     return pddl.Axiom(predicate.name, predicate.arguments,
                       len(predicate.arguments), condition)
 
